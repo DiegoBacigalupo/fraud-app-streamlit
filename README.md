@@ -1,11 +1,12 @@
 ## Url a la app: https://fraud-app-appgit-fxftcu2rq8t7jaqnvwc2pc.streamlit.app/
 
-## Versión 3: FraudGuard AI - Detección de Fraudes (Versión 3)
+# Versión 3: FraudGuard AI - Detección de Fraudes (Versión 3)
+
+**Optimización de Recursos de OpenAI:** Para optimizar la eficiencia y minimizar el consumo de recursos de OpenAI, la aplicación FraudGuard AI se ha diseñado de manera que el modelo de Machine Learning entrenado es el principal encargado del análisis de las transacciones. Este modelo realiza la detección inicial de posibles fraudes de forma autónoma. **Los recursos de la API de OpenAI solo se utilizan bajo demanda del usuario**, específicamente cuando decide solicitar una explicación detallada de por qué una transacción fue marcada como fraudulenta o cuando solicita una recomendacion sobre que modelo de machine larning elegir utilizar. De esta manera, la aplicación puede operar eficientemente sin incurrir en costos innecesarios de OpenAI para cada transacción analizada.
 
 ## Descripción
 
-FraudGuard AI es una aplicación de Streamlit diseñada para detectar transacciones fraudulentas utilizando modelos de Machine Learning e Inteligencia Artificial. La aplicación permite a los usuarios entrenar modelos personalizados a partir de sus propios datos y analizar nuevas transacciones para identificar posibles fraudes.
-El modelo de ML actúa como un sistema de detección, identificando transacciones sospechosas y notificando al Agente de IA. El Agente de IA sirve como intermediario, presentando esta información a los usuarios y permitiéndoles tomar decisiones informadas. El Agente de IA entonces ejecuta estas decisiones, interactuando con otros sistemas según sea necesario.
+FraudGuard AI es una aplicación de Streamlit diseñada para detectar transacciones fraudulentas utilizando modelos de Machine Learning e Inteligencia Artificial. La aplicación permite a los usuarios entrenar modelos personalizados a partir de sus propios datos y analizar nuevas transacciones para identificar posibles fraudes. El modelo de ML actúa como un sistema de detección, identificando transacciones sospechosas y notificando al Agente de IA. El Agente de IA sirve como intermediario, presentando esta información a los usuarios y permitiéndoles tomar decisiones informadas. El Agente de IA entonces ejecuta estas decisiones, interactuando con otros sistemas según sea necesario.
 
 ## Funcionalidades
 
@@ -20,19 +21,21 @@ El modelo de ML actúa como un sistema de detección, identificando transaccione
 
 ## Cómo Funciona
 
-1.  **Entrenamiento del Modelo:**
-    * El usuario sube un dataset en formato CSV.
-    * El usuario selecciona la columna objetivo y las columnas de características.
-    * Opcionalmente, la aplicación recomienda un modelo de Machine Learning.
-    * El usuario selecciona un modelo y lo entrena.
-2.  **Análisis de Transacciones:**
-    * El usuario sube un dataset de transacciones en formato CSV.
-    * La aplicación utiliza el modelo entrenado para predecir qué transacciones son fraudulentas.
-    * Se muestran las transacciones fraudulentas detectadas.
-    * El usuario puede solicitar una explicación detallada para cada transacción fraudulenta.
+**Entrenamiento del Modelo:**
 
+1.  El usuario sube un dataset en formato CSV.
+2.  El usuario selecciona la columna objetivo y las columnas de características.
+3.  Opcionalmente, la aplicación recomienda un modelo de Machine Learning.
+4.  El usuario selecciona un modelo y lo entrena.
 
-  ### Comunicación con el Agente de IA
+**Análisis de Transacciones:**
+
+1.  El usuario sube un dataset de transacciones en formato CSV.
+2.  La aplicación utiliza el modelo entrenado para predecir qué transacciones son fraudulentas.
+3.  Se muestran las transacciones fraudulentas detectadas.
+4.  El usuario puede solicitar una explicación detallada para cada transacción fraudulenta.
+
+## Comunicación con el Agente de IA
 
 **1. Comunicación del Modelo ML con el Agente de IA**
 
@@ -51,11 +54,10 @@ El modelo de ML actúa como un sistema de detección, identificando transaccione
 * **Interfaz de Usuario (UI):** Los usuarios interactúan con el Agente de IA a través de una interfaz de usuario, que puede ser una aplicación web, una aplicación móvil, o un sistema de mensajería.
 * **Recepción de Alertas:** El Agente de IA presenta las alertas de transacciones sospechosas a los usuarios a través de la UI. La información mostrada incluye los detalles proporcionados por el modelo de ML.
 * **Acciones del Usuario:** Los usuarios pueden realizar varias acciones en respuesta a una alerta, tales como:
-    * **Aprobar la transacción:** Si el usuario determina que la transacción es legítima.
-    * **Rechazar la transacción:** Si el usuario confirma que la transacción es fraudulenta.
-    * **Solicitar más información:** Si el usuario necesita más detalles para tomar una decisión.
-    * **Investigar al usuario:** Si el usuario considera que el usuario involucrado es sospechoso.
+    * Aprobar la transacción: Si el usuario determina que la transacción es legítima.
+    * Rechazar la transacción: Si el usuario confirma que la transacción es fraudulenta.
+    * Solicitar más información: Si el usuario necesita más detalles para tomar una decisión.
+    * Investigar al usuario: Si el usuario considera que el usuario involucrado es sospechoso.
 * **Envío de Acciones al Agente de IA:** Las acciones que el usuario realiza en la UI se envían al Agente de IA.
 * **Lógica del Agente de IA:** El Agente de IA procesa las acciones del usuario y toma las medidas necesarias. Por ejemplo, si el usuario rechaza una transacción, el Agente de IA puede bloquear la transacción, notificar al sistema de procesamiento de pagos, y registrar la acción para fines de auditoría.
 * **Confirmación al Usuario:** El Agente de IA envía una confirmación al usuario a través de la UI para indicar que su acción ha sido procesada.
-
