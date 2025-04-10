@@ -1,125 +1,89 @@
 import streamlit as st
+import openai
 import pandas as pd
-from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, AdaBoostClassifier
 from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier, export_text
 from sklearn.svm import SVC
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
-from sklearn.ensemble import RandomForestClassifier
-import openai  # Para la API de OpenAI
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
-from io import StringIO  # Para manejar datos en memoria
+from sklearn.naive_bayes import GaussianNB
+from sklearn.neural_network import MLPClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, classification_report, confusion_matrix
+import time  # Importar el módulo time
+import matplotlib.pyplot as plt
+import seaborn as sns
+from io import StringIO
+
+# Inicializar la API Key de OpenAI
+openai.api_key = st.session_state.get("OPENAI_API_KEY")
+
+if 'modelo_ml' not in st.session_state:
+    st.session_state['modelo_ml'] = None
+if 'feature_columns_entrenamiento' not in st.session_state:
+    st.session_state['feature_columns_entrenamiento'] = []
+if 'transacciones_fraudulentas' not in st.session_state:
+    st.session_state['transacciones_fraudulentas'] = {}
+if 'explicaciones' not in st.session_state:
+    st.session_state['explicaciones'] = {}
+if 'mostrar_transacciones' not in st.session_state:
+    st.session_state['mostrar_transacciones'] = False
+if 'importancia_caracteristicas' not in st.session_state:
+    st.session_state['importancia_caracteristicas'] = {}
+if 'modelo_seleccionado' not in st.session_state:
+    st.session_state['modelo_seleccionado'] = None
+if 'recomendacion_modelo' not in st.session_state:
+    st.session_state['recomendacion_modelo'] = None
+if 'justificacion_modelo' not in st.session_state:
+    st.session_state['justificacion_modelo'] = None
+if 'datos_entrenamiento' not in st.session_state:
+    st.session_state['datos_entrenamiento'] = None
+if 'target_column_entrenamiento' not in st.session_state:
+    st.session_state['target_column_entrenamiento'] = None
 
 
-def obtener_recomendacion_modelo(dataframe, api_key):
+def obtener_recomendacion_modelo(dataframe):
     """
     Obtiene una recomendación de modelo de Machine Learning de la API de OpenAI
     basándose en un análisis del dataset proporcionado.
 
     Args:
         dataframe (pd.DataFrame): El dataset cargado por el usuario.
-        api_key (str): La clave de la API de OpenAI.
 
     Returns:
-        tuple: Una tupla que contiene el modelo recomendado (str) y la justificación (str).
-               Devuelve (None, None) si hay un error.
+        str: El modelo recomendado.
     """
-    openai.api_key = api_key  # Establecer la clave de la API
-
-    # 1. Preparación de los Datos del Dataset
-    try:
-        # Extract relevant information from the dataset
-        columnas = list(dataframe.columns)
-        tipos_de_datos = [str(dataframe.dtypes[col]) for col in columnas]
-        estadisticas_numericas = {}
-        for col in dataframe.select_dtypes(include='number').columns:
-            estadisticas_numericas[col] = {
-                'media': dataframe[col].mean(),
-                'desviacion_estandar': dataframe[col].std(),
-                'minimo': dataframe[col].min(),
-                'maximo': dataframe[col].max(),
-            }
-        valores_unicos_categoricas = {}
-        for col in dataframe.select_dtypes(include='object').columns:
-            valores_unicos_categoricas[col] = list(dataframe[col].unique())
-
-        # Formatear los datos para el prompt
-        informacion_dataset = f"Columnas: {columnas}\n"
-        informacion_dataset += f"Tipos de datos: {tipos_de_datos}\n"
-        informacion_dataset += "Estadísticas de columnas numéricas:\n"
-        for col, stats in estadisticas_numericas.items():
-            informacion_dataset += f"  - {col}: {stats}\n"
-        informacion_dataset += "Valores únicos en columnas categóricas:\n"
-        for col, valores in valores_unicos_categoricas.items():
-            informacion_dataset += f"  - {col}: {valores}\n"
-
-    except Exception as e:
-        print(f"Error al preparar los datos del dataset: {e}")
-        return None, None
-
-    # 2. Creación del Prompt para la API de OpenAI
     prompt = f"""
     Descripción del problema: El objetivo es detectar transacciones fraudulentas en un conjunto de datos.
 
     Información del dataset:
-    {informacion_dataset}
+    {dataframe.head().to_string()}
 
-    Modelos de Machine Learning disponibles:
-    - Regresión Logística
-    - SVM (Support Vector Machine)
-    - Redes Neuronales
-    - Random Forest
+    Columnas y tipos de datos:
+    {dataframe.info()}
 
     Tarea:
     1. Analiza el dataset proporcionado.
-    2. Recomienda uno de los modelos de Machine Learning disponibles que sea más adecuado para este dataset y el problema de detección de fraudes.
-    3. Proporciona una breve justificación de por qué el modelo recomendado es el más adecuado.
-
-    Respuesta:
+    2. Recomienda el modelo de Machine Learning más adecuado para este problema de clasificación binaria.
+    3. Justifica brevemente tu elección (máximo 2 oraciones).
+    4. Devuelve solo el nombre del modelo y la justificación, separados por un punto y coma. Por ejemplo: "Random Forest; Es un buen modelo para problemas de clasificación y puede manejar grandes conjuntos de datos".
     """
-
-    # 3. Llamada a la API de OpenAI
     try:
-        response = openai.Completion.create(
-            model="gpt-3.5-turbo-instruct",  # O un modelo similar
-            prompt=prompt,
-            temperature=0.5,  # Ajustado para respuestas más deterministas
-            max_tokens=250,  # Aumentado para permitir justificaciones más extensas
+        response = openai.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system",
+                 "content": "Eres un experto en detección de fraudes y análisis de datos."},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=100,
         )
-        respuesta_openai = response.choices[0].text.strip()
+        respuesta = response.choices[0].message.content.strip()
+        return respuesta
     except Exception as e:
-        print(f"Error al llamar a la API de OpenAI: {e}")
-        return None, None
-
-    # 4. Procesamiento de la Respuesta de la API
-    try:
-        # Extract the recommended model and justification (more robust parsing)
-        lineas = respuesta_openai.split('\n')
-        modelo_recomendado = None
-        justificacion = ""
-        encontrado_modelo = False
-
-        for linea in lineas:
-            linea = linea.strip()
-            if not encontrado_modelo and "Modelo recomendado:" in linea:
-                partes = linea.split("Modelo recomendado:")
-                if len(partes) > 1:
-                    modelo_recomendado = partes[1].strip().replace(".", "")  # Remove trailing period
-                    encontrado_modelo = True
-            elif encontrado_modelo:
-                justificacion += linea + " "
-
-        # Check if the model is valid
-        if not modelo_recomendado or modelo_recomendado not in ["Regresión Logística", "SVM", "Redes Neuronales", "Random Forest"]:
-            print(f"La API de OpenAI no recomendó un modelo válido. Respuesta de la API: {respuesta_openai}")
-            return None, None
-
-    except Exception as e:
-        print(f"Error al procesar la respuesta de la API: {e}")
-        return None, None
-
-    # 5. Presentación de la Recomendación al Usuario (Esto se hará en la interfaz de usuario)
-    return modelo_recomendado, justificacion
+        error_message = f"Error al obtener recomendación del modelo: {e}"
+        st.error(error_message)
+        print(error_message)
+        return "Error; No se pudo obtener la recomendación del modelo."
 
 
 def entrenar_modelo(modelo_seleccionado, X_train, y_train):
@@ -132,203 +96,289 @@ def entrenar_modelo(modelo_seleccionado, X_train, y_train):
         y_train (pd.Series): Las etiquetas de entrenamiento.
 
     Returns:
-        object: El modelo entrenado. Devuelve None si hay un error.
+        object: El modelo entrenado.
     """
-    try:
-        if modelo_seleccionado == "Regresión Logística":
-            modelo = LogisticRegression(solver='liblinear', random_state=42)  # Especificar solver
-        elif modelo_seleccionado == "SVM":
-            modelo = SVC(probability=True, random_state=42)  # probability=True para predict_proba
-        elif modelo_seleccionado == "Redes Neuronales":
-            modelo = Sequential([
-                Dense(128, activation='relu', input_shape=(X_train.shape[1],)),
-                Dense(64, activation='relu'),
-                Dense(1, activation='sigmoid')
-            ])
-            modelo.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-        elif modelo_seleccionado == "Random Forest":
-            modelo = RandomForestClassifier(random_state=42)
-        else:
-            print(f"Modelo no soportado: {modelo_seleccionado}")
-            return None
-
-        modelo.fit(X_train, y_train)
-        return modelo
-    except Exception as e:
-        print(f"Error al entrenar el modelo {modelo_seleccionado}: {e}")
-        return None
-
-
-
-def realizar_predicciones(modelo_entrenado, X_test):
-    """
-    Realiza predicciones con el modelo entrenado.
-
-    Args:
-        modelo_entrenado (object): El modelo entrenado.
-        X_test (pd.DataFrame): Los datos de prueba.
-
-    Returns:
-        pd.Series: Las predicciones. Devuelve None si hay un error.
-    """
-    try:
-        if modelo_entrenado:
-            return modelo_entrenado.predict(X_test)
-        else:
-            return None
-    except Exception as e:
-        print(f"Error al realizar predicciones: {e}")
-        return None
-def analizar_transaccion_openai(transaccion, modelo_seleccionado, api_key):
-    """
-    Analiza una transacción de alto riesgo con la API de OpenAI.
-
-    Args:
-        transaccion (pd.Series): Los datos de la transacción de alto riesgo.
-        modelo_seleccionado (str): El modelo de ML utilizado.
-        api_key (str): Clave de la API de OpenAI
-
-    Returns:
-        str: El análisis de la IA.
-    """
-    openai.api_key = api_key
-    try:
-        prompt = f"""
-            Descripción del problema: Determinar si una transacción es fraudulenta.
-
-            Datos de la transacción:
-            {transaccion.to_string()}
-
-            Modelo de Machine Learning utilizado: {modelo_seleccionado}
-
-            Tarea:
-            1. Analiza los datos de la transacción.
-            2. Indica si la transacción es de alto riesgo y explica los factores que contribuyen a tu evaluación.
-            3. Sé conciso en tu respuesta.
-
-            Respuesta:
-            """
-        response = openai.Completion.create(
-                model="gpt-3.5-turbo-instruct",
-                prompt=prompt,
-                temperature=0.5,
-                max_tokens=150,
-            )
-        return response.choices[0].text.strip()
-    except Exception as e:
-        print(f"Error al analizar transacción con OpenAI: {e}")
-        return "No se pudo analizar la transacción."
-
-def calcular_metricas(y_true, y_pred, modelo_entrenado, X_test):
-    """
-    Calcula y muestra varias métricas de rendimiento del modelo.
-
-    Args:
-        y_true (pd.Series): Valores reales.
-        y_pred (pd.Series): Valores predichos.
-        modelo_entrenado (object): Modelo entrenado (para AUC-ROC).
-        X_test (pd.DataFrame): Datos de prueba
-    """
-    try:
-        accuracy = accuracy_score(y_true, y_pred)
-        precision = precision_score(y_true, y_pred)
-        recall = recall_score(y_true, y_pred)
-        f1 = f1_score(y_true, y_pred)
-        auc_roc = roc_auc_score(y_true, modelo_entrenado.predict_proba(X_test)[:, 1])
-
-        st.subheader("Métricas de Rendimiento del Modelo")
-        st.write(f"Accuracy: {accuracy:.4f}")
-        st.write(f"Precision: {precision:.4f}")
-        st.write(f"Recall: {recall:.4f}")
-        st.write(f"F1 Score: {f1:.4f}")
-        st.write(f"AUC-ROC: {auc_roc:.4f}")
-    except Exception as e:
-        st.error(f"Error al calcular las métricas: {e}")
-
-def main():
-    st.title("FraudGuard AI - Detección de Transacciones Fraudulentas")
-
-    # API Key
-    api_key = st.text_input("Ingrese su API Key de OpenAI:", type="password")
-    if not api_key:
-        st.warning("Por favor, ingrese su API Key de OpenAI para utilizar todas las funcionalidades.")
-        return
-
-    # Carga de datos
-    archivo_csv = st.file_uploader("Cargue su archivo CSV con datos de transacciones", type="csv")
-    if archivo_csv is not None:
+    modelos = {
+        "Random Forest": RandomForestClassifier(random_state=42),
+        "Gradient Boosting": GradientBoostingClassifier(random_state=42),
+        "AdaBoost": AdaBoostClassifier(random_state=42),
+        "Logistic Regression": LogisticRegression(random_state=42),
+        "Decision Tree": DecisionTreeClassifier(random_state=42),
+        "SVM": SVC(probability=True, random_state=42),
+        "Naive Bayes": GaussianNB(),
+        "Neural Network": MLPClassifier(random_state=42),
+    }
+    if modelo_seleccionado in modelos:
         try:
-            # Leer el archivo CSV usando pandas
-            df = pd.read_csv(archivo_csv)
+            modelo = modelos[modelo_seleccionado]
+            modelo.fit(X_train, y_train)
+            return modelo
         except Exception as e:
-            st.error(f"Error al leer el archivo CSV: {e}")
-            return
-
-        # Verificar si el DataFrame está vacío
-        if df.empty:
-            st.error("El DataFrame está vacío. Por favor, cargue un archivo CSV con datos.")
-            return
-
-        # Separación de datos (con manejo de errores)
-        if 'target' in df.columns:
-            X = df.drop("target", axis=1)  # Suponiendo que 'target' es la columna objetivo
-            y = df["target"]
-            try:
-                X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-            except Exception as e:
-                st.error(f"Error al dividir los datos: {e}")
-                return
-        else:
-            X = df
-            X_train, X_test = train_test_split(X, test_size=0.2, random_state=42)
-            y_train = None #Lo inicializo para que no de error luego.
+            st.error(f"Error al entrenar el modelo {modelo_seleccionado}: {e}")
+            return None
+    else:
+        st.error(f"Modelo no soportado: {modelo_seleccionado}")
+        return None
 
 
-        # Obtener recomendación de OpenAI
-        modelo_recomendado, justificacion_recomendacion = obtener_recomendacion_modelo(X_train, api_key)
-        if modelo_recomendado is None:
-            st.error("No se pudo obtener una recomendación de modelo de la API de OpenAI.  Por favor, revise su API key y el formato del archivo CSV.")
-            return
+def analizar_transaccion(transaccion, modelo_ml, feature_columns_entrenamiento):
+    """
+    Analiza una transacción utilizando el modelo de ML entrenado.
 
-        # Mostrar IU de selección de modelos
-        st.subheader("Recomendación del Modelo de la IA")
-        st.write(f"Modelo Recomendado: **{modelo_recomendado}**")
-        with st.expander("Justificación de la Recomendación"):
-            st.write(justificacion_recomendacion)
+    Args:
+        transaccion (pd.Series): La transacción a analizar.
+        modelo_ml (object): El modelo de ML entrenado.
+        feature_columns_entrenamiento (list): Lista de características usadas para entrenar el modelo.
 
-        modelos_disponibles = ["Regresión Logística", "SVM", "Redes Neuronales", "Random Forest"]
-        modelo_seleccionado = st.selectbox("Seleccione un modelo", modelos_disponibles, index=modelos_disponibles.index(modelo_recomendado))
+    Returns:
+        int: 1 si se predice fraude, 0 si no.
+    """
+    try:
+        transaccion_df = pd.DataFrame([transaccion])
+        transaccion_X = transaccion_df[feature_columns_entrenamiento]
+        prediccion = modelo_ml.predict(transaccion_X)[0]
+        return prediccion
+    except Exception as e:
+        st.error(f"Error al analizar la transacción: {e}")
+        return 0
 
-        # Entrenar modelo
-        modelo_entrenado = entrenar_modelo(modelo_seleccionado, X_train, y_train)
-        if modelo_entrenado is None:
-            st.error(f"No se pudo entrenar el modelo seleccionado: {modelo_seleccionado}")
-            return
 
-        # Realizar predicciones
-        predicciones = realizar_predicciones(modelo_entrenado, X_test)
-        if predicciones is None:
-            st.error("No se pudieron realizar las predicciones.")
-            return
+st.title("FraudGuard AI - Detección de Fraudes")
 
-        if y_train is not None:
-            calcular_metricas(y_test, predicciones, modelo_entrenado, X_test)
+# Solicitar la API Key de OpenAI al usuario
+openai_api_key = st.text_input(
+    "Ingresa tu API Key de OpenAI:",
+    type="password",
+    placeholder="sk-...",
+    help="Obtén tu API Key de OpenAI desde https://platform.openai.com/account/api-keys",
+)
 
-        # Analizar transacciones de alto riesgo (ejemplo)
-        st.subheader("Análisis de Transacciones de Alto Riesgo")
-        if y_train is not None: #Solo tiene sentido si hay un target.
-            transacciones_alto_riesgo = X_test[predicciones == 1]  # Suponiendo que 1 indica fraude
-            if transacciones_alto_riesgo.empty:
-                st.write("No se detectaron transacciones de alto riesgo.")
+# Guardar la API Key en la sesión de Streamlit
+if openai_api_key:
+    openai.api_key = openai_api_key
+    st.session_state["OPENAI_API_KEY"] = openai_api_key  # Guardar en la sesión
+    # Verificar que la API Key esté configurada
+    try:
+        #  Usar una llamada diferente para validar la API key.
+        openai.models.list()
+        st.success("API Key de OpenAI configurada correctamente.")
+    except Exception as e:
+        st.error(
+            f"Error: La API Key de OpenAI no es válida: {e}. Por favor, verifica tu API Key.")
+        st.stop()  # Detener la ejecución si la clave no es válida
+
+else:
+    st.warning(
+        "Por favor, ingresa tu API Key de OpenAI para continuar. La aplicación no funcionará correctamente sin ella.")
+    st.stop()
+
+
+st.subheader("Entrenar modelo desde cero")
+uploaded_file_entrenamiento = st.file_uploader(
+    "Sube el dataset para entrenar el modelo (debe incluir la columna objetivo)", type=["csv"])
+
+if uploaded_file_entrenamiento is not None:
+    try:
+        df_entrenamiento = pd.read_csv(uploaded_file_entrenamiento)
+        st.session_state['datos_entrenamiento'] = df_entrenamiento
+        target_column_entrenamiento = st.selectbox(
+            "Selecciona la columna objetivo", df_entrenamiento.columns.tolist())
+        st.session_state['target_column_entrenamiento'] = target_column_entrenamiento
+
+        feature_columns_entrenamiento = st.multiselect(
+            "Selecciona las columnas de características",
+            df_entrenamiento.columns.tolist())
+        st.session_state['feature_columns_entrenamiento'] = feature_columns_entrenamiento
+
+        if st.button("Obtener recomendación de modelo"):
+            if st.session_state['datos_entrenamiento'] is not None:
+                with st.spinner("Obteniendo recomendación del modelo..."):
+                    respuesta_modelo = obtener_recomendacion_modelo(
+                        st.session_state['datos_entrenamiento'])
+                    if "Error;" not in respuesta_modelo:
+                        st.session_state['recomendacion_modelo'], st.session_state['justificacion_modelo'] = respuesta_modelo.split(
+                            ";")
+                        st.write(
+                            f"Modelo recomendado: {st.session_state['recomendacion_modelo']}")
+                        st.write(
+                            f"Justificación: {st.session_state['justificacion_modelo']}")
+                    else:
+                        st.error(
+                            "No se pudo obtener una recomendación del modelo. Por favor, verifica tu conexión a internet y tu clave de API de OpenAI.")
+                        st.session_state['recomendacion_modelo'] = None
             else:
-                for index, transaccion in transacciones_alto_riesgo.iterrows():
-                    analisis_ia = analizar_transaccion_openai(transaccion, modelo_seleccionado, api_key)
-                    st.write(f"Transacción {index}: {analisis_ia}")
-        else:
-            st.write("No se puede analizar transacciones de alto riesgo ya que no se proporcionó una columna objetivo.")
-        # Mostrar las predicciones
-        st.subheader("Predicciones")
-        st.write(predicciones)
+                st.warning(
+                    "Por favor, sube un dataset primero para obtener la recomendación.")
 
-if __name__ == "__main__":
-    main()
+        modelos_disponibles = ["Random Forest", "Gradient Boosting", "AdaBoost",
+                             "Logistic Regression", "Decision Tree", "SVM", "Naive Bayes", "Neural Network"]
+        st.session_state['modelo_seleccionado'] = st.selectbox(
+            "Selecciona el modelo a entrenar", modelos_disponibles)
+
+        if st.button("Entrenar modelo"):
+            if target_column_entrenamiento and feature_columns_entrenamiento:
+                X_entrenamiento = df_entrenamiento[feature_columns_entrenamiento]
+                y_entrenamiento = df_entrenamiento[target_column_entrenamiento].astype(
+                    int)
+                st.write(
+                    f"Entrenando modelo: {st.session_state['modelo_seleccionado']}")
+                st.session_state['modelo_ml'] = entrenar_modelo(
+                    st.session_state['modelo_seleccionado'], X_entrenamiento, y_entrenamiento)
+                if st.session_state['modelo_ml'] is not None:
+                    st.success("Modelo entrenado con éxito.")
+                    st.session_state['feature_columns_entrenamiento'] = feature_columns_entrenamiento
+
+                    if hasattr(st.session_state['modelo_ml'], 'feature_importances_'):
+                        st.session_state['importancia_caracteristicas'] = dict(
+                            zip(feature_columns_entrenamiento,
+                                st.session_state['modelo_ml'].feature_importances_))
+                    else:
+                        st.session_state['importancia_caracteristicas'] = {}
+
+                    # Mostrar métricas de rendimiento
+                    y_pred_entrenamiento = st.session_state['modelo_ml'].predict(
+                        X_entrenamiento)
+                    st.write("Métricas de rendimiento en el conjunto de entrenamiento:")
+                    st.write(f"Accuracy: {accuracy_score(y_entrenamiento, y_pred_entrenamiento)}")
+                    st.write(f"Precision: {precision_score(y_entrenamiento, y_pred_entrenamiento)}")
+                    st.write(f"Recall: {recall_score(y_entrenamiento, y_pred_entrenamiento)}")
+                    st.write(f"F1 Score: {f1_score(y_entrenamiento, y_pred_entrenamiento)}")
+                    st.write(
+                        f"AUC ROC Score: {roc_auc_score(y_entrenamiento, y_pred_entrenamiento)}")
+
+                    # Mostrar reporte de clasificación
+                    st.text("Reporte de Clasificación:\n" + classification_report(
+                        y_entrenamiento, y_pred_entrenamiento))
+
+                    # Mostrar matriz de confusión
+                    st.subheader("Matriz de Confusión en el Conjunto de Entrenamiento:")
+                    cm = confusion_matrix(y_entrenamiento, y_pred_entrenamiento)
+                    plt.figure(figsize=(8, 6))
+                    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues")
+                    plt.xlabel("Predicho")
+                    plt.ylabel("Real")
+                    st.pyplot(plt)
+
+                else:
+                    st.error("No se pudo entrenar el modelo.")
+            else:
+                st.warning(
+                    "Por favor, selecciona la columna objetivo y las columnas de características.")
+
+    except Exception as e:
+        st.error(f"Error al cargar el dataset de entrenamiento: {e}")
+
+
+
+st.subheader("Analizar transferencias con modelo entrenado")
+uploaded_file_prediccion = st.file_uploader(
+    "Sube el dataset para predecir fraudes (sin la columna objetivo)",
+    type=["csv"])
+
+if uploaded_file_prediccion is not None:
+    try:
+        df_prediccion = pd.read_csv(uploaded_file_prediccion)
+        if st.button("Analizar transferencias"):
+            if st.session_state['modelo_ml'] is not None:
+                try:
+                    X_prediccion = df_prediccion[st.session_state['feature_columns_entrenamiento']]
+                    predicciones = st.session_state['modelo_ml'].predict(
+                        X_prediccion)
+                    df_prediccion["prediccion_fraude"] = predicciones
+                    st.session_state['transacciones_fraudulentas'] = df_prediccion[
+                        df_prediccion["prediccion_fraude"] == 1].to_dict(orient='index')
+                    st.session_state['mostrar_transacciones'] = True
+
+                    # Mostrar métricas de rendimiento en el conjunto de predicción (si hay etiquetas reales disponibles)
+                    if st.session_state['target_column_entrenamiento'] in df_prediccion.columns:
+                        y_real_prediccion = df_prediccion[st.session_state['target_column_entrenamiento']].astype(int)
+                        st.write("Métricas de rendimiento en el conjunto de predicción:")
+                        st.write(
+                            f"Accuracy: {accuracy_score(y_real_prediccion, predicciones)}")
+                        st.write(
+                            f"Precision: {precision_score(y_real_prediccion, predicciones)}")
+                        st.write(
+                            f"Recall: {recall_score(y_real_prediccion, predicciones)}")
+                        st.write(
+                            f"F1 Score: {f1_score(y_real_prediccion, predicciones)}")
+                        st.write(
+                            f"AUC ROC Score: {roc_auc_score(y_real_prediccion, predicciones)}")
+
+                        # Mostrar reporte de clasificación
+                        st.text("Reporte de Clasificación:\n" +
+                                classification_report(y_real_prediccion, predicciones))
+
+                        # Mostrar matriz de confusión
+                        st.subheader("Matriz de Confusión en el Conjunto de Predicción:")
+                        cm_prediccion = confusion_matrix(
+                            y_real_prediccion, predicciones)
+                        plt.figure(figsize=(8, 6))
+                        sns.heatmap(cm_prediccion, annot=True, fmt="d", cmap="Blues")
+                        plt.xlabel("Predicho")
+                        plt.ylabel("Real")
+                        st.pyplot(plt)
+                    else:
+                        st.write(
+                            "No se dispone de la columna objetivo en el dataset de predicción, por lo que no se pueden mostrar las métricas de rendimiento.")
+
+                except Exception as e:
+                    st.error(f"Error al predecir fraudes: {e}")
+            else:
+                st.warning("Por favor, reentrena el modelo primero.")
+    except Exception as e:
+        st.error(f"Error al cargar el dataset de predicción: {e}")
+
+
+if st.session_state['mostrar_transacciones']:
+    if not st.session_state['transacciones_fraudulentas']:
+        st.write("No se detectaron transacciones fraudulentas.")
+    else:
+        st.write("Transacciones fraudulentas detectadas:")
+        for index, row in st.session_state['transacciones_fraudulentas'].items():
+
+            if row['prediccion_fraude'] == 1:
+                st.write(f"Transacción {index}: Probabilidad de Fraude: ", end="")
+                probabilidad_fraude = "Alta"
+                st.write(probabilidad_fraude)
+
+                if st.button("Ver Explicación", key=f"explicacion_{index}"):
+                    if index not in st.session_state['explicaciones']:
+                        importancia_transaccion = {k: st.session_state['importancia_caracteristicas'][k] for k in
+                                                   st.session_state['feature_columns_entrenamiento']}
+                        explicacion_arbol = ""
+                        if hasattr(st.session_state['modelo_ml'], 'estimators_'):
+                            primer_arbol = st.session_state['modelo_ml'].estimators_[0]
+                            explicacion_arbol = export_text(primer_arbol,
+                                                            feature_names=st.session_state['feature_columns_entrenamiento'])
+
+                        prompt_openai = f"""
+                            Analiza en detalle la siguiente transacción y determina si es fraudulenta.
+                            Proporciona una explicación concisa, limitándote a un máximo de 2-3 oraciones.
+                            Incluye la probabilidad de fraude (alta, media o baja) y los factores más importantes que contribuyeron a la clasificación.
+
+                            Especificamente, considera los siguientes campos y sus valores:
+                            {', '.join(st.session_state['feature_columns_entrenamiento'])}.
+
+                            Aquí está la importancia de cada característica:
+                            {importancia_transaccion}.
+
+                            Aquí está la explicación de un árbol de decisión para esta transacción:
+                            {explicacion_arbol}.
+
+                            Datos de la transacción:
+                            {row}
+                            """
+                        respuesta = openai.chat.completions.create(
+                            model="gpt-3.5-turbo",
+                            messages=[
+                                {
+                                    "role": "system",
+                                    "content": "Eres un experto en detección de fraudes con un profundo conocimiento de los indicadores de riesgo, el análisis de datos transaccionales, la importancia de las características en modelos de machine learning y la lógica de los árboles de decisión.  Proporciona explicaciones concisas y precisas.",
+                                },
+                                {"role": "user", "content": prompt_openai},
+                            ],
+                            max_tokens=200,
+                        )
+                        st.session_state['explicaciones'][index] = respuesta.choices[
+                            0].message.content.strip()
+                    st.write(st.session_state['explicaciones'][index])
