@@ -9,7 +9,7 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.neural_network import MLPClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, classification_report, confusion_matrix
-import time  # Importar el módulo time
+import time
 import matplotlib.pyplot as plt
 import seaborn as sns
 from io import StringIO
@@ -42,16 +42,6 @@ if 'target_column_entrenamiento' not in st.session_state:
 
 
 def obtener_recomendacion_modelo(dataframe):
-    """
-    Obtiene una recomendación de modelo de Machine Learning de la API de OpenAI
-    basándose en un análisis del dataset proporcionado.
-
-    Args:
-        dataframe (pd.DataFrame): El dataset cargado por el usuario.
-
-    Returns:
-        str: El modelo recomendado.
-    """
     prompt = f"""
     Descripción del problema: El objetivo es detectar transacciones fraudulentas en un conjunto de datos.
 
@@ -87,17 +77,6 @@ def obtener_recomendacion_modelo(dataframe):
 
 
 def entrenar_modelo(modelo_seleccionado, X_train, y_train):
-    """
-    Entrena el modelo de Machine Learning seleccionado.
-
-    Args:
-        modelo_seleccionado (str): El nombre del modelo a entrenar.
-        X_train (pd.DataFrame): Los datos de entrenamiento.
-        y_train (pd.Series): Las etiquetas de entrenamiento.
-
-    Returns:
-        object: El modelo entrenado.
-    """
     modelos = {
         "Random Forest": RandomForestClassifier(random_state=42),
         "Gradient Boosting": GradientBoostingClassifier(random_state=42),
@@ -122,17 +101,6 @@ def entrenar_modelo(modelo_seleccionado, X_train, y_train):
 
 
 def analizar_transaccion(transaccion, modelo_ml, feature_columns_entrenamiento):
-    """
-    Analiza una transacción utilizando el modelo de ML entrenado.
-
-    Args:
-        transaccion (pd.Series): La transacción a analizar.
-        modelo_ml (object): El modelo de ML entrenado.
-        feature_columns_entrenamiento (list): Lista de características usadas para entrenar el modelo.
-
-    Returns:
-        int: 1 si se predice fraude, 0 si no.
-    """
     try:
         transaccion_df = pd.DataFrame([transaccion])
         transaccion_X = transaccion_df[feature_columns_entrenamiento]
@@ -156,22 +124,53 @@ openai_api_key = st.text_input(
 # Guardar la API Key en la sesión de Streamlit
 if openai_api_key:
     openai.api_key = openai_api_key
-    st.session_state["OPENAI_API_KEY"] = openai_api_key  # Guardar en la sesión
-    # Verificar que la API Key esté configurada
+    st.session_state["OPENAI_API_KEY"] = openai_api_key
     try:
-        #  Usar una llamada diferente para validar la API key.
         openai.models.list()
         st.success("API Key de OpenAI configurada correctamente.")
     except Exception as e:
         st.error(
             f"Error: La API Key de OpenAI no es válida: {e}. Por favor, verifica tu API Key.")
-        st.stop()  # Detener la ejecución si la clave no es válida
-
+        st.stop()
 else:
     st.warning(
         "Por favor, ingresa tu API Key de OpenAI para continuar. La aplicación no funcionará correctamente sin ella.")
     st.stop()
 
+# Sección de "Cómo utilizar la app"
+st.sidebar.header("Cómo utilizar la app")
+st.sidebar.markdown(
+    """
+    **Objetivo de la app:** Esta aplicación utiliza inteligencia artificial para detectar transacciones fraudulentas en conjuntos de datos financieros.
+
+    **Para qué sirve:** Permite a los usuarios entrenar un modelo de machine learning con sus propios datos históricos de transacciones y luego utilizar ese modelo para analizar nuevas transacciones e identificar posibles fraudes.
+
+    ---
+    **Paso 1: Ingresar API Key de OpenAI**
+    - Ingresa tu API Key de OpenAI en el campo de texto principal.
+
+    **Paso 2: Entrenar el modelo**
+    - Sube un dataset en formato CSV que contenga la columna objetivo (la que indica si la transacción es fraudulenta o no).
+    - Selecciona la columna objetivo.
+    - Selecciona las columnas de características que el modelo utilizará para el entrenamiento.
+    - Opcionalmente, haz clic en "Obtener recomendación de modelo" para obtener una sugerencia de modelo de ML.
+    - Selecciona el modelo de ML que deseas entrenar.
+    - Haz clic en "Entrenar modelo".
+
+    **Paso 3: Analizar transferencias**
+    - Sube un nuevo dataset en formato CSV para predecir fraudes. Este dataset debe contener las mismas columnas de características que usaste para el entrenamiento (pero no la columna objetivo).
+    - Haz clic en "Analizar transferencias".
+
+    **Paso 4: Ver resultados**
+    - Se mostrará una lista de las transacciones detectadas como fraudulentas.
+    - Para cada transacción fraudulenta, puedes hacer clic en "Ver Explicación" para obtener una interpretación de por qué se clasificó como tal.
+
+    ---
+    **Datasets de prueba:**
+    - Dataset con columna objetivo: [Enlace al dataset CON columna objetivo](TU_URL_CON_OBJETIVO)
+    - Dataset sin columna objetivo: [Enlace al dataset SIN columna objetivo](TU_URL_SIN_OBJETIVO)
+    """
+)
 
 st.subheader("Entrenar modelo desde cero")
 uploaded_file_entrenamiento = st.file_uploader(
@@ -211,7 +210,7 @@ if uploaded_file_entrenamiento is not None:
                     "Por favor, sube un dataset primero para obtener la recomendación.")
 
         modelos_disponibles = ["Random Forest", "Gradient Boosting", "AdaBoost",
-                             "Logistic Regression", "Decision Tree", "SVM", "Naive Bayes", "Neural Network"]
+                               "Logistic Regression", "Decision Tree", "SVM", "Naive Bayes", "Neural Network"]
         st.session_state['modelo_seleccionado'] = st.selectbox(
             "Selecciona el modelo a entrenar", modelos_disponibles)
 
@@ -267,7 +266,6 @@ if uploaded_file_entrenamiento is not None:
 
     except Exception as e:
         st.error(f"Error al cargar el dataset de entrenamiento: {e}")
-
 
 
 st.subheader("Analizar transferencias con modelo entrenado")
@@ -335,16 +333,15 @@ if st.session_state['mostrar_transacciones']:
     else:
         st.write("Transacciones fraudulentas detectadas:")
         for index, row in st.session_state['transacciones_fraudulentas'].items():
-
             if row['prediccion_fraude'] == 1:
                 st.write(f"Transacción {index}: Probabilidad de Fraude: ", end="")
-                probabilidad_fraude = "Alta"
+                probabilidad_fraude = "Alta" # Esto se puede mejorar con la probabilidad real del modelo si está disponible
                 st.write(probabilidad_fraude)
 
                 if st.button("Ver Explicación", key=f"explicacion_{index}"):
                     if index not in st.session_state['explicaciones']:
                         importancia_transaccion = {k: st.session_state['importancia_caracteristicas'][k] for k in
-                                                   st.session_state['feature_columns_entrenamiento']}
+                                                    st.session_state['feature_columns_entrenamiento']}
                         explicacion_arbol = ""
                         if hasattr(st.session_state['modelo_ml'], 'estimators_'):
                             primer_arbol = st.session_state['modelo_ml'].estimators_[0]
@@ -368,17 +365,22 @@ if st.session_state['mostrar_transacciones']:
                             Datos de la transacción:
                             {row}
                             """
-                        respuesta = openai.chat.completions.create(
-                            model="gpt-3.5-turbo",
-                            messages=[
-                                {
-                                    "role": "system",
-                                    "content": "Eres un experto en detección de fraudes con un profundo conocimiento de los indicadores de riesgo, el análisis de datos transaccionales, la importancia de las características en modelos de machine learning y la lógica de los árboles de decisión.  Proporciona explicaciones concisas y precisas.",
-                                },
-                                {"role": "user", "content": prompt_openai},
-                            ],
-                            max_tokens=200,
-                        )
-                        st.session_state['explicaciones'][index] = respuesta.choices[
-                            0].message.content.strip()
-                    st.write(st.session_state['explicaciones'][index])
+                        try:
+                            response = openai.chat.completions.create(
+                                model="gpt-3.5-turbo",
+                                messages=[
+                                    {
+                                        "role": "system",
+                                        "content": "Eres un experto en detección de fraudes con un profundo conocimiento de los indicadores de riesgo, el análisis de datos transaccionales, la importancia de las características en modelos de machine learning y la lógica de los árboles de decisión. Proporciona explicaciones concisas y precisas.",
+                                    },
+                                    {"role": "user", "content": prompt_openai},
+                                ],
+                                max_tokens=200,
+                            )
+                            st.session_state['explicaciones'][index] = response.choices[
+                                0].message.content.strip()
+                        except Exception as e:
+                            st.error(f"Error al obtener explicación de OpenAI: {e}")
+                            st.session_state['explicaciones'][index] = "No se pudo obtener la explicación."
+                    if index in st.session_state['explicaciones']:
+                        st.write(st.session_state['explicaciones'][index])
