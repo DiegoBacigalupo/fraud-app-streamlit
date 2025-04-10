@@ -144,7 +144,9 @@ st.sidebar.markdown(
     **Objetivo de la app:** Esta aplicación utiliza inteligencia artificial para detectar transacciones fraudulentas en conjuntos de datos financieros.
 
     **Para qué sirve:** Permite a los usuarios entrenar un modelo de machine learning con sus propios datos históricos de transacciones y luego utilizar ese modelo para analizar nuevas transacciones e identificar posibles fraudes.
-
+    ---
+    **Datasets de prueba:**
+    - Dataset con columna objetivo y sin columna objetivo: [https://drive.google.com/drive/folders/1_cXXEmTaAdBLUHey67ll92R70vWz8aF_?usp=sharing)
     ---
     **Paso 1: Ingresar API Key de OpenAI**
     - Ingresa tu API Key de OpenAI en el campo de texto principal.
@@ -167,8 +169,8 @@ st.sidebar.markdown(
 
     ---
     **Datasets de prueba:**
-    - Dataset con columna objetivo: [Enlace al dataset CON columna objetivo](TU_URL_CON_OBJETIVO)
-    - Dataset sin columna objetivo: [Enlace al dataset SIN columna objetivo](TU_URL_SIN_OBJETIVO)
+    - Dataset con columna objetivo y sin columna objetivo: [https://drive.google.com/drive/folders/1_cXXEmTaAdBLUHey67ll92R70vWz8aF_?usp=sharing)
+    
     """
 )
 
